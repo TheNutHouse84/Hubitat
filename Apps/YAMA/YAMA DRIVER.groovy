@@ -30,7 +30,6 @@
  *  V0.0.6 - 01/20/21 - Fixed looping issue when broker disconnected from calling PublishLWT. Added subscribe to +/+/set and 
  *                      SendAll on connected status. Added periodic reconnect setting.
  *  V0.0.7 - 01/24/21 - Added in PRs from kuzenkohome fixing disconnect and mqttstatus
- *  V0.0.8 - 01/30/21 - Minor code cleanup
  *
  */
 
@@ -60,7 +59,6 @@ metadata {
 		command "sendAll"
 		
 		attribute "connectionState", "string"
-		//attribute "init", boolean
 	}
 }
 
@@ -69,7 +67,6 @@ def installed() {
 }
 
 def initialize() {
-	// log.debug "Initialize called in driver."
 	runInMillis(5000, heartbeat)
 	mqttConnectionAttempt()
 	sendEvent(name: "init", value: true, displayed: false)
@@ -100,6 +97,7 @@ def mqttConnectionAttempt() {
 
 	if (interfaces.mqtt.isConnected()) {
 		unschedule(connect)
+		runInMillis(5000, heartbeat)
 		connected()
 	}
 }
@@ -154,12 +152,12 @@ def connect() {
 }
 
 def connected() {
-	runInMillis(5000, heartbeat)
     log.info "In connected: Connected to broker"
     sendEvent (name: "connectionState", value: "connected")
     publishLwt("online")
 	subscribe("+/+/set")
 	subscribe("sendAll")
+	runInMillis(5000, heartbeat)
 }
 
 def disconnect() {
@@ -190,8 +188,9 @@ def disconnect() {
 
 def disconnected() {
 	log.info "In disconnected: Disconnected from broker"
-	if (settings?.periodicConnectionRetry) runIn(60, connect)
     sendEvent (name: "connectionState", value: "disconnected")
+	
+	if (periodicConnectionRetry) runIn(60, connect)
 }
 
 def publishLwt(String status) {
@@ -243,8 +242,8 @@ def normalize(name) {
 }
 
 def getHubId() {
-    def hub = location.hub
-    def hubNameNormalized = normalize(hub.name)
+    def hub = device.deviceNetworkId
+    def hubNameNormalized = normalize(hub)
     hubNameNormalized = hubNameNormalized.toLowerCase()
     return hubNameNormalized
 }
